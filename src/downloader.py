@@ -54,7 +54,7 @@ def download_chunk(breeze, symbol, expiry_date, strike, right, chunk):
     print(
         f"    Chunk {chunk['chunk_index']:2d} | "
         f"{symbol} {strike} {right.upper()} {expiry_date} | "
-        f"{chunk['from_date']} → {chunk['to_date']}",
+        f"{chunk['from_date']} to {chunk['to_date']}",
         end=" ... "
     )
 
@@ -111,7 +111,7 @@ def download_chunk(breeze, symbol, expiry_date, strike, right, chunk):
             df = pd.DataFrame(raw_data)
             df = _clean_dataframe(df)
 
-            print(f"OK — {len(df)} candles")
+            print(f"OK -- {len(df)} candles")
             return df
 
         except DailyBudgetExhausted:
@@ -134,9 +134,9 @@ def download_chunk(breeze, symbol, expiry_date, strike, right, chunk):
 def _backoff(attempt):
     """
     Waits for exponential backoff time before the next retry.
-    Attempt 1 → wait 2s
-    Attempt 2 → wait 4s
-    Attempt 3 → wait 8s
+    Attempt 1 - wait 2s
+    Attempt 2 - wait 4s
+    Attempt 3 - wait 8s
     """
     wait = BACKOFF_BASE_SEC ** attempt
     print(f"  Backing off {wait}s before retry...")
@@ -169,12 +169,12 @@ def _clean_dataframe(df):
 
     # Convert types
     df["datetime"]      = pd.to_datetime(df["datetime"])
-    df["open"]          = pd.to_numeric(df["open"],         errors="coerce")
-    df["high"]          = pd.to_numeric(df["high"],         errors="coerce")
-    df["low"]           = pd.to_numeric(df["low"],          errors="coerce")
-    df["close"]         = pd.to_numeric(df["close"],        errors="coerce")
-    df["volume"]        = pd.to_numeric(df["volume"],       errors="coerce").fillna(0).astype(int)
-    df["open_interest"] = pd.to_numeric(df["open_interest"],errors="coerce").fillna(0).astype(int)
+    df["open"]          = pd.to_numeric(df["open"],          errors="coerce")
+    df["high"]          = pd.to_numeric(df["high"],          errors="coerce")
+    df["low"]           = pd.to_numeric(df["low"],           errors="coerce")
+    df["close"]         = pd.to_numeric(df["close"],         errors="coerce")
+    df["volume"]        = pd.to_numeric(df["volume"],        errors="coerce").fillna(0).astype(int)
+    df["open_interest"] = pd.to_numeric(df["open_interest"], errors="coerce").fillna(0).astype(int)
 
     # Sort by datetime ascending
     df = df.sort_values("datetime").reset_index(drop=True)
@@ -194,10 +194,10 @@ if __name__ == "__main__":
     sys.path.insert(0, ".")
 
     from datetime import date
-    from src.auth            import create_session
-    from src.storage         import ensure_folders, load_spot_cache
-    from src.atm_calculator  import update_spot_cache, compute_atm_for_expiry
-    from src.chunk_planner   import build_chunks
+    from src.auth             import create_session
+    from src.storage          import ensure_folders, load_spot_cache
+    from src.atm_calculator   import update_spot_cache, compute_atm_for_expiry
+    from src.chunk_planner    import build_chunks
     from src.expiry_generator import get_expiries_for_nifty
 
     # Connect to Breeze
@@ -222,10 +222,10 @@ if __name__ == "__main__":
         print("No past weekly expiry found. Exiting.")
         sys.exit(1)
 
-    print(f"\nTest contract: NIFTY ATM CE — expiry {test_expiry} ({test_expiry_type})")
+    print(f"\nTest contract: NIFTY ATM CE -- expiry {test_expiry} ({test_expiry_type})")
 
     # Get ATM strike for this expiry
-    atm_info = compute_atm_for_expiry(test_expiry, spot_df)
+    atm_info   = compute_atm_for_expiry(test_expiry, spot_df)
     atm_strike = atm_info["atm_strike"]
     print(f"ATM strike: {atm_strike}")
 
@@ -245,12 +245,12 @@ if __name__ == "__main__":
     )
 
     if df.empty:
-        print("Empty DataFrame returned (option may not have been listed yet).")
-        print("Try chunk 1 or 2 — they are closer to expiry date.")
+        print("Empty DataFrame returned.")
+        print("Try chunk 1 or 2 -- they are closer to expiry date.")
     else:
         print(f"\nData sample (first 5 rows):")
         print(df.head())
         print(f"\nData sample (last 5 rows):")
         print(df.tail())
-        print(f"\nTotal candles in this chunk: {len(df)}")
+        print(f"\nTotal candles: {len(df)}")
         print(f"Columns: {list(df.columns)}")

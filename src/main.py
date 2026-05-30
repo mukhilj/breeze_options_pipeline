@@ -9,7 +9,6 @@ import yaml
 import pandas as pd
 from datetime import date, datetime
 from pathlib import Path
-import os
 
 sys.path.insert(0, ".")
 
@@ -44,7 +43,7 @@ def setup_logging(run_id):
         level    = logging.INFO,
         format   = "%(asctime)s | %(levelname)s | %(message)s",
         handlers = [
-            logging.FileHandler(log_file),
+            logging.FileHandler(log_file, encoding="utf-8"),
             logging.StreamHandler(sys.stdout),
         ]
     )
@@ -55,8 +54,7 @@ def build_full_manifest(expiries, spot_df, existing_manifest,
                         run_id, config):
     """
     Builds manifest rows for all new expiries in one pass.
-    Respects download_slice config — only processes expiries
-    within the assigned date range.
+    Respects download_slice config.
     """
     log = logging.getLogger(__name__)
 
@@ -65,7 +63,6 @@ def build_full_manifest(expiries, spot_df, existing_manifest,
     strike_interval   = config["instruments"]["nifty"]["strike_interval"]
     rights            = ["call", "put"]
 
-    # Read slice assignment from config
     slice_cfg   = config.get("download_slice", {})
     start_str   = slice_cfg.get("start_expiry", "").strip()
     end_str     = slice_cfg.get("end_expiry",   "").strip()
@@ -73,10 +70,9 @@ def build_full_manifest(expiries, spot_df, existing_manifest,
     slice_end   = date.fromisoformat(end_str)   if end_str   else None
 
     if slice_start or slice_end:
-        log.info(f"  Slice filter active: {slice_start or 'beginning'} "
-                 f"→ {slice_end or 'today'}")
+        log.info(f"  Slice filter: {slice_start or 'beginning'} "
+                 f"to {slice_end or 'today'}")
 
-    # Build set of expiries already in manifest for fast lookup
     existing_expiries = set()
     if not existing_manifest.empty:
         existing_expiries = set(
@@ -96,22 +92,18 @@ def build_full_manifest(expiries, spot_df, existing_manifest,
             log.info(f"  Processing expiry {i+1}/{len(expiries)}: "
                      f"{expiry_date}...")
 
-        # Skip future expiries
         if expiry_date > today:
             continue
 
-        # Apply slice filter
         if slice_start and expiry_date < slice_start:
             continue
         if slice_end and expiry_date > slice_end:
             continue
 
-        # Skip if already in manifest
         if str(expiry_date) in existing_expiries:
             skipped += 1
             continue
 
-        # Compute ATM
         try:
             atm_info = compute_atm_for_expiry(
                 expiry_date, spot_df,
@@ -124,7 +116,6 @@ def build_full_manifest(expiries, spot_df, existing_manifest,
 
         strikes = atm_info["strikes"]
 
-        # Build chunks for every contract
         for strike in strikes:
             for right in rights:
                 chunks = build_chunks(expiry_date, expiry_type)
@@ -165,22 +156,37 @@ def build_full_manifest(expiries, spot_df, existing_manifest,
 
 def run_pipeline():
 
-    config = load_config()
-    run_id = datetime.now().strftime("%Y%m%d_%H%M%S")
+    config   = load_config()
+    run_id   = datetime.now().strftime("%Y%m%d_%H%M%S")
     log_file = setup_logging(run_id)
-    log = logging.getLogger(__name__)
+    log      = logging.getLogger(__name__)
 
-    symbol          = config["instruments"]["nifty"]["symbol"]
-    daily_budget    = config["rate_limits"]["calls_per_day"]
+    symbol       = config["instruments"]["nifty"]["symbol"]
+    daily_budget = config["rate_limits"]["calls_per_day"]
+
+    # Read slice from config
+    slice_cfg   = config.get("download_slice", {})
+    start_str   = slice_cfg.get("start_expiry", "").strip()
+    end_str     = slice_cfg.get("end_expiry",   "").strip()
+    slice_start = date.fromisoformat(start_str) if start_str else None
+    slice_end   = date.fromisoformat(end_str)   if end_str   else None
 
     log.info("=" * 60)
-    log.info(f"NIFTY Options Pipeline — Run {run_id}")
+    log.info(f"NIFTY Options Pipeline -- Run {run_id}")
     log.info("=" * 60)
+
+    if slice_start or slice_end:
+        log.info(f"Slice assigned: {slice_start or 'beginning'} "
+                 f"to {slice_end or 'today'}")
 
     # Step 1: Auth
     log.info("Step 1: Authenticating...")
-    session_token = os.environ.get("BREEZE_SESSION_TOKEN", "").strip()
-    breeze = create_session(session_token=session_token if session_token else None)
+    session_token = __import__("os").environ.get(
+        "BREEZE_SESSION_TOKEN", ""
+    ).strip()
+    breeze = create_session(
+        session_token=session_token if session_token else None
+    )
     ensure_folders()
 
     # Step 2: Spot cache
@@ -201,9 +207,27 @@ def run_pipeline():
     )
     print_manifest_summary(manifest)
 
-    # Step 5: Download queue
+    # Step 5: Download queue — apply slice filter here too
     log.info("Step 5: Building download queue...")
-    pending = get_pending_chunks(manifest, limit=daily_budget)
+    pending = get_pending_chunks(manifest, limit=None)
+
+    # ── Apply slice filter to existing manifest rows ──────────
+    # This handles the case where manifest was built before
+    # slice config was set — ensures only assigned slice downloads
+    if slice_start:
+        pending = pending[
+            pending["expiry_date"] >= str(slice_start)
+        ]
+    if slice_end:
+        pending = pending[
+            pending["expiry_date"] <= str(slice_end)
+        ]
+
+    # Cap to daily budget after filtering
+    pending = pending.head(daily_budget)
+
+    log.info(f"  Slice range  : {slice_start or 'all'} to "
+             f"{slice_end or 'all'}")
     log.info(f"  Chunks queued: {len(pending):,}")
 
     if pending.empty:
@@ -251,7 +275,8 @@ def run_pipeline():
             manifest = update_chunk_status(
                 manifest, symbol, expiry_date, strike,
                 right, chunk_index, STATUS_DOWNLOADED,
-                rows=len(raw_df), file_path=file_path, run_id=run_id
+                rows=len(raw_df), file_path=file_path,
+                run_id=run_id
             )
 
             contract_info = {
