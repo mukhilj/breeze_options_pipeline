@@ -12,7 +12,7 @@ Direct Breeze API and store it in a format ready for backtesting.
 - Covers ATM ± 50 strikes (101 strikes) for every expiry
 - Covers weekly and monthly expiries going back 3 years
 - Stores data in efficient Parquet format for fast querying
-- Supports collaborative downloading — different people can 
+- Supports collaborative downloading — different contributors can 
   download different date slices and merge later
 
 ---
@@ -91,6 +91,7 @@ download_slice:
 ```
 
 Refer to the **Slice Assignment Table** below for your dates.
+Contact the project lead if you have not been assigned a slice yet.
 
 ---
 
@@ -105,42 +106,58 @@ python -m src.main
 The pipeline will:
 1. Open your browser for ICICI login
 2. Download your assigned slice (up to 4,500 API calls/day)
-3. Save data to `data/` folder
+3. Save data to your local `data/` folder
 4. Stop automatically when daily limit is reached
 5. Resume from where it left off next time you run it
 
-**Estimated time:** 3 days of running per person (depending on slice size)
+**How long will it take?** Depends on your slice size. Smaller 
+slices finish in 1–2 days. Larger slices may take 3–5 days.
+The pipeline handles everything automatically — just run it daily.
 
 ---
 
 ## Slice Assignment Table
 
-| Person | Start Date | End Date |
-|--------|-----------|----------|
-| 1  | 2023-06-01 | 2023-08-15 |
-| 2  | 2023-08-16 | 2023-10-31 |
-| 3  | 2023-11-01 | 2024-01-15 |
-| 4  | 2024-01-16 | 2024-03-31 |
-| 5  | 2024-04-01 | 2024-06-15 |
-| 6  | 2024-06-16 | 2024-08-31 |
-| 7  | 2024-09-01 | 2024-11-15 |
-| 8  | 2024-11-16 | 2025-01-31 |
-| 9  | 2025-02-01 | 2025-04-15 |
-| 10 | 2025-04-16 | 2025-06-30 |
-| 11 | 2025-07-01 | 2025-09-15 |
-| 12 | 2025-09-16 | 2025-11-30 |
-| 13 | 2025-12-01 | 2026-01-31 |
-| 14 | 2026-02-01 | 2026-03-31 |
-| 15 | 2026-04-01 | 2026-05-30 |
+The full 3-year dataset is divided into chunks below.
+The project lead assigns chunks to available contributors.
+One person can take multiple chunks if needed.
+
+| Chunk | Start Date | End Date | Assigned To |
+|-------|-----------|----------|-------------|
+| 1  | 2023-06-01 | 2023-08-31 | |
+| 2  | 2023-09-01 | 2023-11-30 | |
+| 3  | 2023-12-01 | 2024-02-29 | |
+| 4  | 2024-03-01 | 2024-05-31 | |
+| 5  | 2024-06-01 | 2024-08-31 | |
+| 6  | 2024-09-01 | 2024-11-30 | |
+| 7  | 2024-12-01 | 2025-02-28 | |
+| 8  | 2025-03-01 | 2025-05-31 | |
+| 9  | 2025-06-01 | 2025-08-31 | |
+| 10 | 2025-09-01 | 2025-11-30 | |
+| 11 | 2025-12-01 | 2026-02-28 | |
+| 12 | 2026-03-01 | 2026-05-30 | |
+
+**Notes:**
+- Each chunk covers approximately 3 months of data
+- A single chunk typically takes 3–4 days to download
+- If you have more contributors, ask the project lead to split 
+  a chunk into two smaller date ranges
+- If you have fewer contributors, assign multiple chunks to 
+  one person — the pipeline handles them sequentially
 
 ---
 
 ## How to Share Your Data
 
-Once your slice is complete:
+Once your slice is complete, the terminal will show:
 
+```
+Nothing to download. Your slice is complete!
+```
+
+At that point:
 1. Zip your `data/nifty/options/master/` folder
-2. Name it `data_personN.zip` (replace N with your person number)
+2. Name it `data_chunk_N.zip` (replace N with your chunk number)
 3. Share with the project lead via Google Drive / OneDrive
 
 ---
@@ -188,10 +205,14 @@ Run `python -m pip install -r requirements.txt` again and make
 sure `(venv)` is active in your terminal.
 
 **Pipeline stops after a few hours**
-Daily API limit reached. Run again tomorrow — it resumes automatically.
+Daily API limit reached (4,500 calls/day). Run again tomorrow —
+it resumes automatically from where it stopped.
 
 **Computer went to sleep mid-run**
 No data loss. Just run again — it picks up from where it stopped.
+
+**How do I know my slice is done?**
+The terminal will print: `Nothing to download. Your slice is complete!`
 
 ---
 
@@ -233,9 +254,18 @@ breeze_options_pipeline/
 
 ---
 
-## Contributing
+## Want to Contribute More?
 
-Pull requests are welcome. For major changes, open an issue first.
+If you finish your assigned slice early and want to help:
+- Contact the project lead for an additional chunk assignment
+- Or help verify downloaded data using the DuckDB queries above
+
+---
+
+## Contributing to the Code
+
+Pull requests are welcome. For major changes, open an issue first
+to discuss what you would like to change.
 
 If you want to add support for BANKNIFTY or SENSEX, refer to the 
 Phase 2 section in the project documentation.
