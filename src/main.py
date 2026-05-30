@@ -9,6 +9,7 @@ import yaml
 import pandas as pd
 from datetime import date, datetime
 from pathlib import Path
+import os
 
 sys.path.insert(0, ".")
 
@@ -178,7 +179,8 @@ def run_pipeline():
 
     # Step 1: Auth
     log.info("Step 1: Authenticating...")
-    breeze = create_session()
+    session_token = os.environ.get("BREEZE_SESSION_TOKEN", "").strip()
+    breeze = create_session(session_token=session_token if session_token else None)
     ensure_folders()
 
     # Step 2: Spot cache
