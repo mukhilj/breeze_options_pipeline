@@ -1,0 +1,46 @@
+# ─────────────────────────────────────────────────────────────
+# Breeze Options Pipeline — Master Configuration
+# All settings live here. Never hardcode values in src/ files.
+# ─────────────────────────────────────────────────────────────
+
+breeze:
+  # Credentials are loaded from .env file — never type them here
+  api_key: ""
+  api_secret: ""
+
+rate_limits:
+  calls_per_min: 90       # Breeze hard limit is 100
+  calls_per_day: 4500     # Breeze hard limit is 5000
+  min_delay_sec: 0.7
+
+download:
+  max_candles_per_request: 1000
+  max_retries: 3
+  backoff_base_sec: 2
+
+instruments:
+  nifty:
+    symbol: "NIFTY"
+    exchange: "NFO"
+    product_type: "options"
+    strike_interval: 50
+    strikes_each_side: 50
+    interval: "1minute"
+
+# ─────────────────────────────────────────────────────────────
+# DOWNLOAD SLICE ASSIGNMENT
+# Each contributor sets their assigned date range here.
+# Leave both empty to download everything.
+#
+# Example:
+#   start_expiry: "2024-01-01"
+#   end_expiry:   "2024-06-30"
+# ─────────────────────────────────────────────────────────────
+download_slice:
+  start_expiry: ""    # Your assigned start date (YYYY-MM-DD)
+  end_expiry:   ""    # Your assigned end date   (YYYY-MM-DD)
+
+paths:
+  data_root:    "data/"
+  logs_root:    "logs/"
+  exports_root: "exports/"

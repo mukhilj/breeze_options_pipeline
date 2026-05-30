@@ -1,0 +1,15 @@
+# Credentials — never share these
+.env
+
+# Virtual environment — no need to upload
+venv/
+
+# Data files — too large to upload
+data/
+logs/
+exports/
+
+# Python cache files
+__pycache__/
+*.pyc
+*.pyo

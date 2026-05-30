@@ -1,0 +1,6 @@
+breeze-connect
+pandas
+pyarrow
+duckdb
+pyyaml
+python-dotenv
