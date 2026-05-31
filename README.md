@@ -1,6 +1,8 @@
 # NIFTY Options Historical Data Pipeline
 
-A collaborative Python tool to download 3 years of NIFTY options historical data (1-minute OHLCV + Open Interest) from the ICICI Direct Breeze API and store it in a format ready for backtesting.
+A collaborative Python tool to download 3 years of NIFTY options
+historical data (1-minute OHLCV + Open Interest) from the ICICI
+Direct Breeze API and store it in a format ready for backtesting.
 
 ---
 
@@ -10,8 +12,8 @@ A collaborative Python tool to download 3 years of NIFTY options historical data
 - Covers ATM + or - 50 strikes (101 strikes) for every expiry
 - Covers weekly and monthly expiries going back 3 years
 - Stores data locally on your computer in an efficient format
-- Supports collaborative downloading — different contributors download different date slices and merge later
-- Includes a simple web interface — no command line knowledge needed
+- Supports collaborative downloading — different contributors
+  download different date slices and merge later
 
 ---
 
@@ -35,19 +37,16 @@ Extract the ZIP to a simple folder path like:
 - Windows: C:\projects\breeze_options_pipeline\
 - Mac/Linux: ~/projects/breeze_options_pipeline/
 
-### Step 2 — Open in VS Code
+### Step 2 — Open terminal in VS Code
 
-Open VS Code → File → Open Folder → select the project folder.
-
-Open the terminal inside VS Code: View → Terminal.
+Open VS Code, go to File, open the project folder.
+Then open the terminal: View, then Terminal.
 
 ### Step 3 — Create virtual environment
 
-Run this in the terminal:
-
     python -m venv venv
 
-Then activate it:
+Activate it:
 
 Windows:
 
@@ -57,59 +56,52 @@ Mac/Linux:
 
     source venv/bin/activate
 
-You should see (venv) appear in the terminal prompt. Always make sure you see (venv) before running any command.
+You should see (venv) in the terminal prompt.
+Always check for (venv) before running any command.
 
 ### Step 4 — Install required libraries
 
     python -m pip install -r requirements.txt
 
-This may take 2 to 3 minutes. Wait until it finishes.
+### Step 5 — Run setup
+
+    python setup.py
+
+This asks for your API credentials and assigned date slice,
+and saves everything automatically. You only need to do this once.
 
 ---
 
-## Running the App
+## Daily Download Routine
 
-Once setup is done, every time you want to download data, run this in the terminal:
+Every day, run these two commands:
 
-    streamlit run app.py
+Step 1 — Login to Breeze (generates a fresh session):
 
-Your browser will automatically open at http://localhost:8501
+    python -m src.auth
 
----
+Your browser opens the ICICI Direct login page.
+Log in, copy the token from the redirect URL, paste it in the terminal.
 
-## Using the Web App
+Step 2 — Run the pipeline:
 
-The app walks you through 3 simple steps.
+    python -m src.main
 
-### Step 1 — Your Settings
+The pipeline downloads your assigned slice, up to 4,500 API calls
+per day, then stops automatically. Keep the terminal open while
+it runs (1 to 2 hours). Next day, repeat from Step 1.
 
-- Enter your Breeze API Key and API Secret (from https://api.icicidirect.com)
-- Enter your assigned start date and end date (see Slice Assignment Table below)
-- Click Save Settings
+When your slice is complete, you will see:
 
-### Step 2 — Login to Breeze
-
-- Click Generate Login Link
-- Your browser opens the ICICI Direct login page
-- Log in with your ICICI Direct credentials
-- After login, your browser redirects to a URL like: http://localhost:8080/?apisession=55788970
-- Copy the number after ?apisession= and paste it into the app
-- You need to do this every day before running
-
-### Step 3 — Download Data
-
-- Click Start Download
-- Keep the browser tab open while downloading
-- Live output will appear on screen showing progress
-- The pipeline downloads up to 4,500 API calls per day and stops automatically
-- Next day, repeat from Step 2 — it resumes where it left off
-- When done, you will see: Nothing to download. Your slice is complete!
+    Nothing to download. Your slice is complete!
 
 ---
 
 ## Slice Assignment Table
 
-The full 3-year dataset is divided into chunks. Contact the project lead to get your chunk assigned. One person can take multiple chunks if needed.
+The full 3-year dataset is divided into chunks.
+Contact the project lead to get your chunk assigned.
+One person can take multiple chunks if needed.
 
 | Chunk | Start Date | End Date   | Assigned To |
 |-------|------------|------------|-------------|
@@ -129,20 +121,23 @@ The full 3-year dataset is divided into chunks. Contact the project lead to get 
 Notes:
 - Each chunk covers approximately 3 months of data
 - A single chunk typically takes 3 to 4 days to complete
-- If more contributors are available, the project lead can split a chunk into smaller date ranges
-- If fewer contributors are available, one person can be assigned multiple chunks
+- If more contributors are available, the project lead can
+  split a chunk into smaller date ranges
+- If fewer contributors are available, one person can be
+  assigned multiple chunks
 
 ---
 
 ## How Long Will It Take?
 
-| Chunk Size            | Estimated Days |
-|-----------------------|----------------|
-| 1 chunk (3 months)    | 3 to 4 days    |
-| 2 chunks (6 months)   | 6 to 8 days    |
-| Full dataset alone    | ~45 days       |
+| Chunk Size          | Estimated Days |
+|---------------------|----------------|
+| 1 chunk (3 months)  | 3 to 4 days    |
+| 2 chunks (6 months) | 6 to 8 days    |
+| Full dataset alone  | ~45 days       |
 
-The app runs for 1 to 2 hours each day then stops automatically. Just open the app and click Start Download each morning.
+The pipeline runs for 1 to 2 hours each day then stops.
+Just run the two daily commands each morning.
 
 ---
 
@@ -158,55 +153,80 @@ Once your slice is complete:
 
 ---
 
+## Monitoring Progress
+
+To check how much has been downloaded, run:
+
+    python -c "import pandas as pd; df=pd.read_parquet('data/manifest.parquet'); print(df['status'].value_counts())"
+
+This shows counts of pending, validated, and failed chunks.
+
+---
+
 ## Frequently Asked Questions
 
 Do I need to keep my computer on all day?
-No. The pipeline runs for about 1 to 2 hours, hits the daily API limit, and stops. You can then close everything. Repeat the next day.
+No. The pipeline runs for 1 to 2 hours, hits the daily API limit,
+and stops. Close everything and repeat the next day.
 
 What if my computer goes to sleep mid-run?
-No data is lost. Just open the app and click Start Download again — it resumes from exactly where it stopped.
+No data is lost. Run the two daily commands again and it resumes
+from exactly where it stopped.
 
 How do I know my slice is done?
-The app will show: Nothing to download. Your slice is complete!
-
-Can I close the browser while it runs?
-No — keep the browser tab open while downloading. You can lock your screen, but do not close VS Code or the terminal.
+The terminal will print: Nothing to download. Your slice is complete!
 
 Do I need to enter my API key every day?
-No — it is saved after the first time. You only need to paste a fresh session token each day (Step 2 in the app).
+No. It is saved after running setup.py. You only need to run
+python -m src.auth each day to get a fresh session token.
 
-What is the data used for?
-Options backtesting and research. Data is stored only on your local computer and never uploaded anywhere.
+Can I close the terminal while it runs?
+No. Keep the terminal open while the pipeline is running.
+You can lock your screen but do not close VS Code or the terminal.
+
+---
+
+## Querying the Data (Advanced)
+
+After the project lead merges all slices, query data using Python:
+
+    import duckdb
+
+    duckdb.query("""
+        SELECT strike, option_type, close, volume, open_interest
+        FROM 'data/merged/options/master/**/*.parquet'
+        WHERE timestamp = '2025-01-15 10:15:00'
+        AND option_type = 'CE'
+        ORDER BY strike
+    """).df()
 
 ---
 
 ## Data Format
 
-Each downloaded candle contains:
-
-| Column         | Description                            |
-|----------------|----------------------------------------|
-| timestamp      | Date and time of the candle (IST)      |
-| symbol         | NIFTY                                  |
-| expiry_date    | Contract expiry date                   |
-| strike         | Strike price                           |
-| option_type    | CE (Call) or PE (Put)                  |
-| open           | Opening price                          |
-| high           | Highest price in that minute           |
-| low            | Lowest price in that minute            |
-| close          | Closing price                          |
-| volume         | Number of contracts traded             |
-| open_interest  | Total open contracts                   |
+| Column         | Description                       |
+|----------------|-----------------------------------|
+| timestamp      | Date and time of candle (IST)     |
+| symbol         | NIFTY                             |
+| expiry_date    | Contract expiry date              |
+| strike         | Strike price                      |
+| option_type    | CE (Call) or PE (Put)             |
+| open           | Opening price                     |
+| high           | Highest price in that minute      |
+| low            | Lowest price in that minute       |
+| close          | Closing price                     |
+| volume         | Number of contracts traded        |
+| open_interest  | Total open contracts              |
 
 ---
 
 ## Project Structure
 
     breeze_options_pipeline/
-    |-- app.py                  Web interface (run this)
+    |-- setup.py                Run this first (one time only)
     |-- src/                    Pipeline modules (do not edit)
     |-- config/
-    |   |-- config.yaml         Settings (managed by the app)
+    |   |-- config.yaml         Settings (managed by setup.py)
     |   |-- nse_holidays.csv    NSE holiday calendar
     |-- data/                   Your downloaded data (not on GitHub)
     |-- logs/                   Run logs (not on GitHub)
@@ -218,29 +238,31 @@ Each downloaded candle contains:
 
 ## Common Issues
 
-ModuleNotFoundError when running:
-Make sure (venv) is visible in your terminal prompt. If not, run venv\Scripts\activate on Windows or source venv/bin/activate on Mac/Linux first.
+(venv) not showing in terminal:
+Run venv\Scripts\activate on Windows or source venv/bin/activate
+on Mac/Linux before any command.
 
-Public Key does not exist in browser:
-Your API key may have been copied incorrectly. Go back to https://api.icicidirect.com and copy it again carefully.
-
-Browser does not open automatically:
-Manually open your browser and go to http://localhost:8501
+Session key expired error:
+Run python -m src.auth again to get a fresh session token.
+This needs to be done each time you start a new run.
 
 Pipeline stops after 1 to 2 hours:
-This is normal — the daily API limit of 4,500 calls was reached. Run again tomorrow and it will resume automatically.
+Normal. Daily API limit reached. Run again tomorrow.
 
-App shows an error after clicking Start Download:
-Make sure you completed Step 1 (Save Settings) and Step 2 (paste session token) before clicking Start Download.
+Public Key does not exist in browser:
+API key copied incorrectly. Re-run setup.py and enter it again.
 
 ---
 
 ## Want to Help More?
 
-If you finish your chunk early and want to contribute more, contact the project lead for an additional chunk assignment.
+If you finish your chunk early, contact the project lead for
+an additional chunk assignment.
 
 ---
 
 ## Disclaimer
 
-This tool is for personal research and educational purposes only. Please comply with ICICI Direct API terms of service. Data is stored locally and never shared without your knowledge.
+This tool is for personal research and educational purposes only.
+Please comply with ICICI Direct API terms of service.
+Data is stored locally and never shared without your knowledge.
