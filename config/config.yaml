@@ -21,6 +21,6 @@ paths:
   exports_root: exports/
   logs_root: logs/
 rate_limits:
-  calls_per_day: 4500
-  calls_per_min: 90
+  calls_per_day: 10000
+  calls_per_min: 95
   min_delay_sec: 0.7

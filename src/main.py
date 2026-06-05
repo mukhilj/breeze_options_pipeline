@@ -31,7 +31,6 @@ from src.manifest         import (load_manifest, save_manifest,
 
 
 def load_config(path="config/config.yaml"):
-    """Loads config.yaml and returns as dict."""
     with open(path, "r") as f:
         return yaml.safe_load(f)
 
@@ -53,8 +52,9 @@ def setup_logging(run_id):
 def build_full_manifest(expiries, spot_df, existing_manifest,
                         run_id, config):
     """
-    Builds manifest rows for all new expiries in one pass.
-    Respects download_slice config.
+    Builds manifest rows for all new contracts in one pass.
+    Checks at CONTRACT level (expiry + strike + right) so that
+    partially downloaded expiries get their remaining contracts added.
     """
     log = logging.getLogger(__name__)
 
@@ -73,18 +73,24 @@ def build_full_manifest(expiries, spot_df, existing_manifest,
         log.info(f"  Slice filter: {slice_start or 'beginning'} "
                  f"to {slice_end or 'today'}")
 
-    existing_expiries = set()
+    # Build set of existing contracts for fast lookup
+    # Key: (expiry_date_str, strike_str, right)
+    existing_contracts = set()
     if not existing_manifest.empty:
-        existing_expiries = set(
-            existing_manifest[
-                existing_manifest["symbol"] == symbol
-            ]["expiry_date"]
+        em = existing_manifest[existing_manifest["symbol"] == symbol]
+        existing_contracts = set(
+            zip(
+                em["expiry_date"],
+                em["strike"].astype(str),
+                em["right"]
+            )
         )
+    log.info(f"  Existing contracts in manifest: {len(existing_contracts):,}")
 
-    today          = date.today()
-    all_new_rows   = []
-    expiries_added = 0
-    skipped        = 0
+    today        = date.today()
+    all_new_rows = []
+    contracts_added = 0
+    contracts_skipped = 0
 
     for i, (expiry_date, expiry_type) in enumerate(expiries):
 
@@ -100,10 +106,7 @@ def build_full_manifest(expiries, spot_df, existing_manifest,
         if slice_end and expiry_date > slice_end:
             continue
 
-        if str(expiry_date) in existing_expiries:
-            skipped += 1
-            continue
-
+        # Compute ATM for this expiry
         try:
             atm_info = compute_atm_for_expiry(
                 expiry_date, spot_df,
@@ -116,8 +119,17 @@ def build_full_manifest(expiries, spot_df, existing_manifest,
 
         strikes = atm_info["strikes"]
 
+        # Check at CONTRACT level — not expiry level
         for strike in strikes:
             for right in rights:
+
+                contract_key = (str(expiry_date), str(strike), right)
+
+                if contract_key in existing_contracts:
+                    contracts_skipped += 1
+                    continue  # This specific contract already exists
+
+                # New contract — add all its chunks
                 chunks = build_chunks(expiry_date, expiry_type)
                 for chunk in chunks:
                     all_new_rows.append({
@@ -137,12 +149,11 @@ def build_full_manifest(expiries, spot_df, existing_manifest,
                         "source_run_id": run_id,
                         "updated_at":    str(datetime.now()),
                     })
+                contracts_added += 1
 
-        expiries_added += 1
-
-    log.info(f"  New expiries added : {expiries_added}")
-    log.info(f"  Already completed  : {skipped}")
-    log.info(f"  New chunks queued  : {len(all_new_rows):,}")
+    log.info(f"  New contracts added    : {contracts_added:,}")
+    log.info(f"  Contracts already done : {contracts_skipped:,}")
+    log.info(f"  New chunks queued      : {len(all_new_rows):,}")
 
     if not all_new_rows:
         return existing_manifest
@@ -164,7 +175,6 @@ def run_pipeline():
     symbol       = config["instruments"]["nifty"]["symbol"]
     daily_budget = config["rate_limits"]["calls_per_day"]
 
-    # Read slice from config
     slice_cfg   = config.get("download_slice", {})
     start_str   = slice_cfg.get("start_expiry", "").strip()
     end_str     = slice_cfg.get("end_expiry",   "").strip()
@@ -181,9 +191,8 @@ def run_pipeline():
 
     # Step 1: Auth
     log.info("Step 1: Authenticating...")
-    session_token = __import__("os").environ.get(
-        "BREEZE_SESSION_TOKEN", ""
-    ).strip()
+    import os
+    session_token = os.environ.get("BREEZE_SESSION_TOKEN", "").strip()
     breeze = create_session(
         session_token=session_token if session_token else None
     )
@@ -199,7 +208,7 @@ def run_pipeline():
     log.info("Step 3: Generating expiry list...")
     expiries = get_expiries_for_nifty(years_back=3)
 
-    # Step 4: Build manifest
+    # Step 4: Build manifest at contract level
     log.info("Step 4: Building manifest...")
     manifest = load_manifest()
     manifest = build_full_manifest(
@@ -207,28 +216,19 @@ def run_pipeline():
     )
     print_manifest_summary(manifest)
 
-    # Step 5: Download queue — apply slice filter here too
+    # Step 5: Download queue with slice filter
     log.info("Step 5: Building download queue...")
     pending = get_pending_chunks(manifest, limit=None)
 
-    # ── Apply slice filter to existing manifest rows ──────────
-    # This handles the case where manifest was built before
-    # slice config was set — ensures only assigned slice downloads
     if slice_start:
-        pending = pending[
-            pending["expiry_date"] >= str(slice_start)
-        ]
+        pending = pending[pending["expiry_date"] >= str(slice_start)]
     if slice_end:
-        pending = pending[
-            pending["expiry_date"] <= str(slice_end)
-        ]
+        pending = pending[pending["expiry_date"] <= str(slice_end)]
 
-    # Cap to daily budget after filtering
     pending = pending.head(daily_budget)
 
-    log.info(f"  Slice range  : {slice_start or 'all'} to "
-             f"{slice_end or 'all'}")
-    log.info(f"  Chunks queued: {len(pending):,}")
+    log.info(f"  Slice  : {slice_start or 'all'} to {slice_end or 'all'}")
+    log.info(f"  Queued : {len(pending):,}")
 
     if pending.empty:
         log.info("Nothing to download. Your slice is complete!")
@@ -272,13 +272,8 @@ def run_pipeline():
             file_path = save_raw_chunk(
                 raw_df, symbol, strike, right, expiry_date
             )
-            manifest = update_chunk_status(
-                manifest, symbol, expiry_date, strike,
-                right, chunk_index, STATUS_DOWNLOADED,
-                rows=len(raw_df), file_path=file_path,
-                run_id=run_id
-            )
 
+            # Validate and write to master immediately
             contract_info = {
                 "symbol": symbol, "strike": strike,
                 "right": right, "expiry_date": expiry_date
@@ -289,6 +284,7 @@ def run_pipeline():
             append_to_master(
                 validated_df, symbol, strike, right, expiry_date
             )
+
             manifest = update_chunk_status(
                 manifest, symbol, expiry_date, strike,
                 right, chunk_index, STATUS_VALIDATED,
